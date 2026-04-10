@@ -1,6 +1,7 @@
 import { initViewer, loadModel } from './viewer.js';
 
 initViewer(document.getElementById('preview')).then(viewer => {
+    window.viewer = viewer;
     const urn = window.location.hash?.substring(1);
     setupModelSelection(viewer, urn);
     setupModelUpload(viewer);
@@ -35,7 +36,7 @@ async function setupModelUpload(viewer) {
         const file = input.files[0];
         let data = new FormData();
         data.append('model-file', file);
-        if (file.name.endsWith('.zip')) { // When uploading a zip file, ask for the main design file in the archive
+        if (file.name.endsWith('.zip')) {
             const entrypoint = window.prompt('Please enter the filename of the main design inside the archive.');
             data.append('model-zip-entrypoint', entrypoint);
         }
@@ -87,7 +88,13 @@ async function onModelSelected(viewer, urn) {
             default:
                 clearNotification();
                 loadModel(viewer, urn);
-                break; 
+                viewer.addEventListener(Autodesk.Viewing.MODEL_ROOT_LOADED_EVENT, () => {
+                    viewer.addEventListener(
+                        Autodesk.Viewing.SELECTION_CHANGED_EVENT,
+                        window.onElementSelected
+                    );
+                }, { once: true });
+                break;
         }
     } catch (err) {
         alert('Could not load model. See the console for more details.');

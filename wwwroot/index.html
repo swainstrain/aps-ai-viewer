@@ -1,28 +1,393 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/x-icon" href="https://cdn.autodesk.io/favicon.ico">
-    <link rel="stylesheet" href="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/style.css">
-    <link rel="stylesheet" href="/main.css">
-    <title>Autodesk Platform Services: Simple Viewer</title>
+    <title>BIM AI Assistant</title>
+    <link rel="stylesheet" href="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/style.css" />
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            font-family: sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+        }
+
+        #header {
+            background: #16213e;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #0f3460;
+            flex-shrink: 0;
+        }
+
+            #header h1 {
+                margin: 0;
+                font-size: 1.1rem;
+                color: #e94560;
+                white-space: nowrap;
+            }
+
+            #header select {
+                background: #0f3460;
+                color: #eee;
+                border: 1px solid #e94560;
+                border-radius: 4px;
+                padding: 4px 8px;
+                min-width: 180px;
+            }
+
+            #header button {
+                background: #e94560;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 5px 12px;
+                cursor: pointer;
+                font-size: 0.85rem;
+                white-space: nowrap;
+            }
+
+        #upload {
+            background: #0f3460 !important;
+            border: 1px solid #e94560 !important;
+        }
+
+            #upload:disabled {
+                opacity: 0.4;
+                cursor: default;
+            }
+
+        #main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        #preview {
+            flex: 1;
+            min-width: 0;
+            position: relative;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0,0,0,0.5);
+            z-index: 100;
+        }
+
+        .notification {
+            background: #16213e;
+            border: 1px solid #e94560;
+            border-radius: 8px;
+            padding: 20px 28px;
+            color: #eee;
+            font-size: 0.9rem;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        #ai-panel {
+            width: 340px;
+            min-width: 340px;
+            max-width: 340px;
+            background: #16213e;
+            border-left: 1px solid #0f3460;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+            z-index: 10;
+            transition: width 0.2s, min-width 0.2s, max-width 0.2s;
+        }
+
+            #ai-panel.collapsed {
+                width: 0;
+                min-width: 0;
+                max-width: 0;
+            }
+
+        #panel-header {
+            padding: 14px 16px;
+            background: #0f3460;
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            color: #e94560;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        #toggle-panel {
+            cursor: pointer;
+            font-size: 1.1rem;
+            user-select: none;
+        }
+
+        #element-info {
+            padding: 12px 16px;
+            background: #1a1a2e;
+            border-bottom: 1px solid #0f3460;
+            font-size: 0.78rem;
+            color: #aaa;
+            min-height: 52px;
+            flex-shrink: 0;
+        }
+
+            #element-info strong {
+                color: #eee;
+                font-size: 0.9rem;
+                display: block;
+                margin-bottom: 2px;
+            }
+
+        #ai-response {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            color: #dde;
+            min-height: 0;
+            /* 👇 add these */
+            will-change: contents;
+            overflow-anchor: none; /* prevents scroll jump on append */
+            word-break: break-word;
+        }
+
+            #ai-response.loading {
+                color: #888;
+                font-style: italic;
+            }
+
+        #ask-section {
+            padding: 12px;
+            border-top: 1px solid #0f3460;
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        #ask-input {
+            flex: 1;
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            color: #eee;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 0.82rem;
+        }
+
+            #ask-input:focus {
+                outline: 1px solid #e94560;
+            }
+
+        #ask-btn {
+            background: #e94560;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 14px;
+            cursor: pointer;
+            font-size: 0.82rem;
+            white-space: nowrap;
+        }
+
+            #ask-btn:disabled {
+                opacity: 0.4;
+                cursor: default;
+            }
+    </style>
 </head>
-
 <body>
-    <div id="header">
-        <img class="logo" src="https://cdn.autodesk.io/logo/black/stacked.png" alt="Autodesk Platform Services">
-        <span class="title">Simple Viewer</span>
-        <select name="models" id="models"></select>
-        <button id="upload" title="Upload New Model">Upload</button>
-        <input style="display: none" type="file" id="input">
-    </div>
-    <div id="preview"></div>
-    <div id="overlay"></div>
-    <script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.js"></script>
-    <script src="/main.js" type="module"></script>
-</body>
 
+    <div id="header">
+        <h1>🏗️ BIM AI Assistant</h1>
+        <select id="models"></select>
+        <button id="upload" title="Upload New Model">📤 Upload</button>
+        <input style="display:none" type="file" id="input" />
+    </div>
+
+    <div id="main">
+        <div id="preview"></div>
+        <div id="overlay"></div>
+
+        <div id="ai-panel">
+            <div id="panel-header">
+                🤖 AI Analysis
+                <span id="toggle-panel" onclick="togglePanel()">◀</span>
+            </div>
+            <div id="element-info">Select an element in the viewer to analyze it.</div>
+            <div id="ai-response"></div>
+            <div id="ask-section">
+                <input id="ask-input" type="text" placeholder="Ask a follow-up question..." disabled />
+                <button id="ask-btn" onclick="askFollowUp()" disabled>Ask</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.min.js"></script>
+    <script src="/main.js" type="module"></script>
+    <script>
+        // ── AI Panel state ────────────────────────────────────────────────────
+        let currentElement = null;
+        let conversationHistory = [];
+        let panelOpen = true;
+
+        // ── Hook selection event once viewer is ready ─────────────────────────
+        function hookSelectionEvent() {
+            if (!window.viewer) {
+                setTimeout(hookSelectionEvent, 500);
+                return;
+            }
+            window.viewer.addEventListener(
+                Autodesk.Viewing.SELECTION_CHANGED_EVENT,
+                onElementSelected
+            );
+        }
+        hookSelectionEvent();
+
+        // ── Element selected ──────────────────────────────────────────────────
+        function onElementSelected(event) {
+            const dbIds = event.dbIdArray;
+            if (!dbIds || dbIds.length === 0) return;
+            const dbId = dbIds[0];
+
+            window.viewer.getProperties(dbId, (result) => {
+                const props = {};
+                result.properties.forEach(p => {
+                    if (p.displayValue !== '' && p.displayValue != null) {
+                        props[p.displayName] = String(p.displayValue);
+                    }
+                });
+
+                const category = result.properties.find(p => p.attributeName === 'Category')?.displayValue
+                    || result.objectCategory
+                    || 'Unknown';
+                const family = result.properties.find(p => p.displayName === 'Family')?.displayValue;
+                const type = result.properties.find(p => p.displayName === 'Type')?.displayValue;
+
+                currentElement = { name: result.name, category, family, type, properties: props };
+                conversationHistory = [];
+
+                document.getElementById('element-info').innerHTML =
+                    `<strong>${result.name}</strong>${category}${family ? ' · ' + family : ''}${type ? ' · ' + type : ''}`;
+
+                document.getElementById('ask-input').disabled = false;
+                document.getElementById('ask-btn').disabled = false;
+
+                analyzeElement();
+            });
+        }
+
+        // ── AI calls ──────────────────────────────────────────────────────────
+        async function analyzeElement() {
+            if (!currentElement) return;
+            conversationHistory = [];
+            await streamAI('/api/ai/explain', currentElement);
+        }
+
+        async function askFollowUp() {
+            const input = document.getElementById('ask-input');
+            const question = input.value.trim();
+            if (!question || !currentElement) return;
+            input.value = '';
+
+            const payload = { ...currentElement, followUp: question, history: conversationHistory };
+            await streamAI('/api/ai/followup', payload);
+        }
+
+        async function streamAI(endpoint, payload) {
+            const responseEl = document.getElementById('ai-response');
+            responseEl.className = 'loading';
+            responseEl.textContent = '⏳ Analyzing…';
+
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) {
+                    responseEl.className = '';
+                    responseEl.textContent = '❌ Error calling AI.';
+                    return;
+                }
+
+                responseEl.className = '';
+                responseEl.textContent = '';
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let full = '';
+                let renderPending = false;
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    full += decoder.decode(value, { stream: true });
+
+                    // only schedule one repaint at a time
+                    if (!renderPending) {
+                        renderPending = true;
+                        requestAnimationFrame(() => {
+                            responseEl.textContent = full;
+                            responseEl.scrollTop = responseEl.scrollHeight;
+                            renderPending = false;
+                        });
+                    }
+                }
+
+                // final render to make sure last chunk is shown
+                responseEl.textContent = full;
+                responseEl.scrollTop = responseEl.scrollHeight;
+                conversationHistory.push({ role: 'assistant', content: full });
+
+            } catch (err) {
+                responseEl.className = '';
+                responseEl.textContent = `❌ Error: ${err.message}`;
+            }
+        }
+
+        // ── UI helpers ────────────────────────────────────────────────────────
+        function togglePanel() {
+            panelOpen = !panelOpen;
+            document.getElementById('ai-panel').classList.toggle('collapsed', !panelOpen);
+            document.getElementById('toggle-panel').textContent = panelOpen ? '◀' : '▶';
+        }
+
+        document.getElementById('ask-input').addEventListener('keydown', e => {
+            if (e.key === 'Enter') askFollowUp();
+        });
+    </script>
+
+</body>
 </html>
